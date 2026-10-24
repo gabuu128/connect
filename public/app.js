@@ -284,21 +284,27 @@ async function refresh() {
 }
 
 async function enterApplication() {
-  const status = await api('/api/status');
-  if (!status.authenticated) {
-    $('#login-screen').hidden = false;
-    $('#app-shell').hidden = true;
-    return;
-  }
-  $('#login-screen').hidden = true;
-  $('#app-shell').hidden = false;
-  $('#admin-email').textContent = status.admin.email;
-  $('#current-date').textContent = new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-  state = await api('/api/bootstrap');
-  renderDashboard();
-  renderNetwork(await api('/api/network'));
   clearInterval(refreshTimer);
-  refreshTimer = setInterval(refresh, 1000);
+  try {
+    const status = await api('/api/status');
+    if (!status.authenticated) {
+      $('#login-screen').hidden = false;
+      $('#app-shell').hidden = true;
+      return;
+    }
+    $('#login-screen').hidden = true;
+    $('#app-shell').hidden = false;
+    $('#admin-email').textContent = status.admin.email;
+    $('#current-date').textContent = new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    state = await api('/api/bootstrap');
+    renderDashboard();
+    renderNetwork(await api('/api/network'));
+    refreshTimer = setInterval(refresh, 1000);
+  } catch (error) {
+    $('#app-shell').hidden = true;
+    $('#login-screen').hidden = false;
+    $('#login-error').textContent = `Connect API unavailable: ${error.message}`;
+  }
 }
 
 async function changeConnection(customer) {
@@ -404,4 +410,4 @@ $('#password-form').addEventListener('submit', async (event) => {
   } catch (error) { message.textContent = error.message; message.style.color = '#bd4941'; }
 });
 
-enterApplication().catch((error) => showToast(error.message));
+enterApplication();
