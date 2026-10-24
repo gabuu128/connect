@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const archive = join(root, 'dist', 'connect.zip');
 mkdirSync(dirname(archive), { recursive: true });
-const files = ['README.md', 'package.json', 'server.js', 'network', 'public', 'test', 'scripts'];
+const files = ['README.md', 'netlify.toml', 'netlify', 'package.json', 'server.js', 'network', 'public', 'test', 'scripts'];
 const command = process.platform === 'win32' ? 'tar' : 'zip';
 const args = process.platform === 'win32'
 	? ['-a', '-c', '-f', archive, ...files]

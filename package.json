@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "package": "node scripts/package.js"
+    "package": "node scripts/package.js",
+    "build:netlify": "node scripts/build-netlify.js"
   }
 }

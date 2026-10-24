@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApplication } from '../server.js';
+import apiProxy from '../netlify/functions/api-proxy.mjs';
 
 async function withServer(run, options = {}) {
   const folder = await mkdtemp(join(tmpdir(), 'connect-test-'));
@@ -216,4 +217,42 @@ test('password updates enforce length, revoke old sessions, and reject cross-ori
     result = await request(origin, '/api/bootstrap', { cookie: newCookie });
     assert.equal(result.response.status, 200);
   });
+});
+
+test('Netlify proxy requires a backend, rejects cross-origin requests, and forwards cookies', async () => {
+  const previousApiUrl = process.env.CONNECT_API_URL;
+  const originalFetch = globalThis.fetch;
+  let forwarded;
+  try {
+    delete process.env.CONNECT_API_URL;
+    let response = await apiProxy(new Request('https://connect-demo.netlify.app/.netlify/functions/api-proxy/api/status'));
+    assert.equal(response.status, 503, 'unconfigured frontend does not pretend its API is available');
+
+    process.env.CONNECT_API_URL = 'https://connect-api.example';
+    response = await apiProxy(new Request('https://connect-demo.netlify.app/.netlify/functions/api-proxy/api/bootstrap', {
+      headers: { Origin: 'https://attacker.example' },
+    }));
+    assert.equal(response.status, 403, 'proxy rejects cross-origin requests');
+
+    globalThis.fetch = async (url, options) => {
+      forwarded = { url: String(url), options };
+      return new Response(JSON.stringify({ authenticated: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'Set-Cookie': 'connect_session=abc; Path=/; HttpOnly; SameSite=Strict' },
+      });
+    };
+    response = await apiProxy(new Request('https://connect-demo.netlify.app/.netlify/functions/api-proxy/api/login?next=home', {
+      method: 'POST',
+      headers: { Origin: 'https://connect-demo.netlify.app', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'admin@example.test' }),
+    }));
+    assert.equal(response.status, 200);
+    assert.equal(forwarded.url, 'https://connect-api.example/api/login?next=home');
+    assert.equal(forwarded.options.headers.get('origin'), 'https://connect-api.example');
+    assert.match(response.headers.get('set-cookie'), /HttpOnly/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousApiUrl === undefined) delete process.env.CONNECT_API_URL;
+    else process.env.CONNECT_API_URL = previousApiUrl;
+  }
 });

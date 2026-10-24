@@ -57,9 +57,21 @@ Stop Connect first so SQLite has no open writes. Copy `data/connect.sqlite` to a
 
 Run `npm test` for API, timer, authorization, validation, and persistence tests. Create a source ZIP from the project directory with `npm run package`; it writes `dist/connect.zip`, excluding the database, dependencies, and generated archives.
 
+## Netlify deployment
+
+Netlify hosts the Connect **frontend and same-origin API proxy**. It does not run this project's SQLite-backed Node server as a persistent service. The API and its SQLite database must remain on a separate Node.js 24 host with persistent disk. Do not deploy the Netlify frontend without configuring that API if you need login or customer workflows.
+
+1. Deploy this repository through Netlify's Git integration. The included `netlify.toml` runs `npm run build:netlify`, publishes `dist/`, and installs the API proxy function.
+2. Host the Connect server separately over HTTPS on a Node.js 24 service with persistent disk. Set `CONNECT_MODE=production`, a unique `CONNECT_ADMIN_PASSWORD`, and `CONNECT_COOKIE_SECURE=true`; retain the provider adapter limitations described above.
+3. In Netlify site environment variables, set `CONNECT_API_URL` to the HTTPS **origin only**, such as `https://connect-api.example.com` (no path or trailing endpoint). Redeploy the site.
+4. Netlify routes browser `/api/*` calls through its same-origin function to that API. If `CONNECT_API_URL` is missing or unreachable, the UI shows an API configuration error rather than demo data.
+
+To build a self-contained Netlify deploy directory locally, run `npm run build:netlify`. The generated `dist/` contains the static assets, proxy function, and its Netlify configuration. For standalone CLI deployment, install/authenticate the Netlify CLI, link a site, then run `netlify deploy --prod --dir .` from inside `dist/`. Alternatively, connect this repository to Netlify and let it build from the root `netlify.toml`. Set `CONNECT_API_URL` in the Netlify site's environment variables in either case. The deploy directory does not contain customer data, API secrets, or the persistent backend.
+
 ## Troubleshooting
 
 - **SQLite unavailable:** Install Node.js 24 or newer and run `node --version`.
 - **Port is busy:** Set `PORT` to another local port, for example `PORT=3001 npm start` (PowerShell: `$env:PORT=3001; npm start`).
 - **Login fails:** The first-run password only seeds a new database. If the database already exists, changing `CONNECT_ADMIN_PASSWORD` does not reset it. Do not delete a production database to recover access; use a reviewed administrative recovery procedure.
 - **Production shows no connections:** This is expected until a provider-specific, tested adapter is implemented and configured. Demo data is never presented as real measurements.
+- **Netlify login or API requests fail:** Confirm `CONNECT_API_URL` is an HTTPS origin, the API host is publicly reachable over HTTPS, and the separately hosted Connect server is running with `CONNECT_COOKIE_SECURE=true`.
